@@ -13,7 +13,45 @@ from pleiades.bulkup import secure, setup_cmfuid
 LOG = logging.getLogger('pleiades.bulkup.locations')
 
 def bulk_update_locations(context, reader, columns, message=None):
-    pass
+
+    catalog = getToolByName(context, 'portal_catalog')
+    repo = getToolByName(context, 'portal_repository')
+   
+    import transaction
+    savepoint = transaction.savepoint()
+    try:
+        for row in reader:
+        
+            path = '/plone' + row['path']
+            results = catalog(
+                path={'query': path, 'depth': 0})
+            try:
+                ob = results[0].getObject()
+            except IndexError:
+                LOG.warn("Not found, cannot update %s" % path)
+                continue
+
+            for key in columns:
+                field = ob.getField(key)
+                value = row[key]
+
+                if key == 'geometry':
+                    ob.setGeometry(value)
+                else:
+                    field.set(ob, value)
+
+            now = DateTime(datetime.datetime.now().isoformat())
+            ob.setModificationDate(now)
+
+            repo.save(ob, message)
+            ob.reindexObject()
+
+    except Exception, e:
+        savepoint.rollback()
+        LOG.error("Rolled back after catching exception: %s" % e)
+    
+    transaction.commit()
+
 
 if __name__ == '__main__':
     # Zopectl doesn't handle command line arguments well, necessitating quoting
