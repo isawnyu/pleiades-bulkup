@@ -25,33 +25,51 @@ def bulk_update_locations(context, reader, columns, message=None):
             path = '/plone' + row['path']
             results = catalog(
                 path={'query': path, 'depth': 0})
-            try:
-                ob = results[0].getObject()
-            except IndexError:
-                LOG.warn("Not found, cannot update %s" % path)
-                continue
 
-            for key in columns:
-                field = ob.getField(key)
-                value = row[key]
+            if not results:
+                # create a location in the place
+                # TODO: implement
+                pid = path.split('/')[3]
+                place = context['places'][pid]
+                place.invokeFactory(
+                    'Location',
+                    row['id'],
+                    title=row['title'], 
+                    geometry=row['geometry'],
+                    creators=row['creators'],
+                    contributors='R. Talbert, T. Elliott, S. Gillies')
 
-                if key == 'geometry':
-                    ob.setGeometry(value)
-                else:
-                    field.set(ob, value)
+            else:
+                # update
+                try:
+                    ob = results[0].getObject()
+                except IndexError:
+                    LOG.warn("Not found, cannot update %s" % path)
+                    continue
 
-            now = DateTime(datetime.datetime.now().isoformat())
-            ob.setModificationDate(now)
+                for key in columns:
+                    field = ob.getField(key)
+                    value = row[key]
 
-            repo.save(ob, message)
-            ob.reindexObject()
+                    if key == 'geometry':
+                        ob.setGeometry(value)
+                    else:
+                        field.set(ob, value)
+
+                now = DateTime(datetime.datetime.now().isoformat())
+                ob.setModificationDate(now)
+
+                repo.save(ob, message)
+                ob.reindexObject()
 
     except Exception, e:
         savepoint.rollback()
         LOG.error("Rolled back after catching exception: %s" % e)
     
     transaction.commit()
-
+    context._p_jar.sync()
+    
+    # end
 
 if __name__ == '__main__':
     # Zopectl doesn't handle command line arguments well, necessitating quoting
