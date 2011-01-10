@@ -9,7 +9,7 @@ from zope.component import provideUtility
 def secure(context, username):
     membership = getToolByName(context, 'portal_membership')
     user=membership.getMemberById(username).getUser()
-    newSecurityManager(None, user)
+    newSecurityManager(None, user.__of__(context.acl_users))
 
 def setup_cmfuid(context):
     provideUtility(
